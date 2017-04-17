@@ -29,7 +29,7 @@ unirest.get("https://transloc-api-1-2.p.mashape.com/stops.json?agencies=635&call
                 lng =result.body.data[i].location.lng,
                 stop_id =result.body.data[i].stop_id,
                 name = result.body.data[i].name ;
-            var row = [code, lat, lng, stop_id, name];
+            var row = [code, lat, lng, stop_id, name.toLowerCase()];
             conn.query('INSERT INTO shuttleStops VALUES (NULL, $1, $2, $3, $4, $5)', row, function (err) {
                 if (err) {
                     console.log('Failed to insert row in the database.');
