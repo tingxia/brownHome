@@ -1,51 +1,57 @@
 var express = require('express');
+//var shuttleDB = require('./shuttle')
 var router = express.Router();
 var anyDB = require('any-db');
 var conn = anyDB.createConnection('sqlite3://data/test.db');
 var unirest = require('unirest');
 const ApiAiAssistant = require('actions-on-google').ApiAiAssistant;
+
+// ENTITIES:
 const DEPARTMENT_ENTITY = 'Brown_Department';
-const SHUTTLESTOP_ENTITY = 'shuttleStopName';
-const SHUTTLESTOP_INTENT = 'ShuttleStops';
-const DEPARTMENT_INTENT = 'Brown Yellowbook';
+const SHUTTLE_STOP_ENTITY = 'ShuttleStop';
+
+// INTENTS:
+const BROWN_YELLOWBOOK = 'Brown Yellowbook';
+const SHUTTLE = 'Shuttle';
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
   res.render('index', { title: 'Express' });
 });
 
-router.get('/brownYellowbook', function(req, res, next) {
+router.get('/brownCentric', function(req, res, next) {
   res.render('index', { title: 'Express brown yellow book' });
 });
 
+// TODO:
+// - load this in dynamically based on location
+// - get information from csv?
+var yellowBookMap = new Map();
+yellowBookMap.set("DPS", "401 863 4111");
+yellowBookMap.set("health service", "401 863 3953");
+
 function getNumber(assistant) {
   var dept = assistant.getArgument(DEPARTMENT_ENTITY);
-  if (yellowBookMap.get(dept) != null ) {
-    console.log("got here");
-    console.log('The number of ' + dept + ' is ' + yellowBookMap.get(dept));
-    assistant.tell('The number of ' + dept + ' is ' + yellowBookMap.get(dept));
+
+  if (yellowBookMap.get(dept) != null) {
+    assistant.tell("The phone number for " + dept + " is " + yellowBookMap.get(dept));
   } else {
-    assistant.tell("Sorry, but I couldn't find the contact information for it");
+    assistant.tell("Sorry, but I couldn't find the contact information for " + dept);
   }
 }
 
-
-function requestArrivalEstimateByName(assistant) {
-    var name = assistant.getArgument(SHUTTLESTOP_ENTITY);
+function handleShuttle(assistant) {
+    var name = assistant.getArgument(SHUTTLE_STOP_ENTITY);
     var originalName = name;
     name = "%"+name.toLowerCase()+"%";
-    console.log("name is " + name);
     // find the stop_id
     conn.query("SELECT * FROM shuttleStops WHERE " +
         "name like $1",
         [name], function(err, result){
             var rowCount = result.rowCount;
             if (rowCount == 0) {
-                console.log("got in rowCount=0");
                 assistant.tell("Sorry, but I don't know a shuttle stop called " + name);
             } else if (!err) {
-                console.log(result.rows[0]);
-                console.log(result.rows[0].stop_id);
                 var stop_id = result.rows[0].stop_id;
                 if (stop_id !== undefined && stop_id !== "") {
                     requestArrivalEstimatesByStopId(originalName, stop_id, assistant);
@@ -67,11 +73,9 @@ function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
         .end(function (result) {
             //console.log(result.status, result.headers, result.body);
             if (result.body.data.length == 0) {
-                console.log("there are no arrival estimates for the stop currently.");
                 assistant.tell("I'm sorry, but there are no arrival estimates for the stop at the time");
             } else {
                 var next_arrival_time =  result.body.data[0].arrivals[0].arrival_at;
-                console.log("next arrival time is " + next_arrival_time);
                 assistant.tell("The next shuttle will arrive at " + name + " at " + next_arrival_time);
             }
 
@@ -87,24 +91,18 @@ yellowBookMap.set("health service", "401999999999");
 /* GET home page. */
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
-
+  
   function responseHandler (assistant) {
-    // todo: use intent in the future. can be parsed manually.
-    console.log(req.body.result.metadata.intentName);
-    const intent = req.body.result.metadata.intentName;
-    //console.log("intent is ");
-    //console.log(intent);
+
+    const intent = req.body.result.metadata.intentName;//assistant.getIntent();
+    
     switch (intent) {
-        case DEPARTMENT_INTENT:
-            getNumber(assistant);
-            break;
-        case SHUTTLESTOP_INTENT:
-            console.log(req.body);
-            requestArrivalEstimateByName(assistant);
-            break;
-
-
-
+     case BROWN_YELLOWBOOK:
+        getNumber(assistant);
+        break;
+      case SHUTTLE:
+        handleShuttle(assistant);
+        break;
     }
   }
 
