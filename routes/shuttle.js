@@ -17,6 +17,7 @@ router.get('/', function(req, res, next) {
 });
 
 function requestArrivalEstimateByName(name) {
+    var name = "%"+name.toLowerCase()+"%";
     // find the stop_id
     conn.query("SELECT * FROM shuttleStops WHERE " +
         "name like $1",
