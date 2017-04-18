@@ -9,7 +9,9 @@ var unirest = require('unirest');
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
-    var name = "%"+"cit"+"%";
+    // name has to be lower case
+    var name = "cit";
+    var name = "%"+name.toLowerCase()+"%";
     requestArrivalEstimateByName(name);
     res.send('respond with a resource');
 });
