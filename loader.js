@@ -12,6 +12,7 @@ var sqlCreate = "CREATE TABLE shuttleStops (" +
     "code TEXT, " +
     "lat NUMBER, " +
     "lng number, " +
+    "route_id TEXT, " +
     "stop_id TEXT, " +
     "name TEXT);";
 conn.query(sqlCreate, function () {
@@ -27,10 +28,11 @@ unirest.get("https://transloc-api-1-2.p.mashape.com/stops.json?agencies=635&call
             var code = result.body.data[i].code,
                 lat = result.body.data[i].location.lat,
                 lng =result.body.data[i].location.lng,
+                route_id = result.body.data[i].routes[0],
                 stop_id =result.body.data[i].stop_id,
                 name = result.body.data[i].name ;
-            var row = [code, lat, lng, stop_id, name.toLowerCase()];
-            conn.query('INSERT INTO shuttleStops VALUES (NULL, $1, $2, $3, $4, $5)', row, function (err) {
+            var row = [code, lat, lng, route_id,stop_id, name.toLowerCase()];
+            conn.query('INSERT INTO shuttleStops VALUES (NULL, $1, $2, $3, $4, $5, $6)', row, function (err) {
                 if (err) {
                     console.log('Failed to insert row in the database.');
                     console.error(err);
