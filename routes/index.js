@@ -39,6 +39,31 @@ var dayNightShuttle = new Map();
 dayNightShuttle.set("Daytime", "4006812");
 dayNightShuttle.set("Night", "4006810");
 
+parseMenu();
+
+function parseMenu() {
+    // "http://legacy.cafebonappetit.com/api/2/menus?cafe=1536&date=2017-04-19"
+    unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe=1534&date=2017-04-19")
+        .header("Accept", "application/json")
+        .end(function (result) {
+            console.log("let's look at this json file");
+
+            // for blueroom:
+            // this finds out the item id
+            //console.log(result.body.days[0].cafes["1534"]["dayparts"][0][0]["stations"]);
+            // this finds the item name and description based on item id
+            //console.log(result.body.items);
+
+            // arr = result.body.days[0].cafes["1536"]["dayparts"][0][1]["stations"]
+            // the above is an array, iterate through to look for "arr[i].label",which gives Tacos, Falafel
+            // Sandwitch bar, smoothies, pizza, etc.
+            //if (result.body.data.length == 0) {
+            //} else {
+            //
+            //}
+        });
+}
+
 function getNumber(assistant) {
   var dept = assistant.getArgument(DEPARTMENT_ENTITY);
 
