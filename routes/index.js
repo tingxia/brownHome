@@ -9,10 +9,15 @@ const ApiAiAssistant = require('actions-on-google').ApiAiAssistant;
 // ENTITIES:
 const DEPARTMENT_ENTITY = 'Brown_Department';
 const SHUTTLE_STOP_ENTITY = 'ShuttleStop';
+const IS_DAYTIME_SHUTTLE = "isDayTimeShuttle";
 
 // INTENTS:
 const BROWN_YELLOWBOOK = 'Brown Yellowbook';
 const SHUTTLE = 'Shuttle';
+const SHUTTLE_FOLLOWUP = "Shuttle-followup";
+
+// CONTEXTS
+const SHUTTLE_CONTEXT = "shuttle-ctx";
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -30,6 +35,10 @@ var yellowBookMap = new Map();
 yellowBookMap.set("DPS", "401 863 4111");
 yellowBookMap.set("health service", "401 863 3953");
 
+var dayNightShuttle = new Map();
+dayNightShuttle.set("Daytime", "4006812");
+dayNightShuttle.set("Night", "4006810");
+
 function getNumber(assistant) {
   var dept = assistant.getArgument(DEPARTMENT_ENTITY);
 
@@ -41,27 +50,69 @@ function getNumber(assistant) {
 }
 
 function handleShuttle(assistant) {
-    var name = assistant.getArgument(SHUTTLE_STOP_ENTITY);
-    var originalName = name;
-    name = "%"+name.toLowerCase()+"%";
-    // find the stop_id
-    conn.query("SELECT * FROM shuttleStops WHERE " +
-        "name like $1",
-        [name], function(err, result){
-            var rowCount = result.rowCount;
-            if (rowCount == 0) {
-                assistant.tell("Sorry, but I don't know a shuttle stop called " + name);
-            } else if (!err) {
-                var stop_id = result.rows[0].stop_id;
-                if (stop_id !== undefined && stop_id !== "") {
-                    requestArrivalEstimatesByStopId(originalName, stop_id, assistant);
+    var contexts = assistant.getContexts();
+    var hasPriorContext = false;
+    var name = null;
+    for (var i=0; i < contexts.length; i++) {
+        if (contexts[i].name === SHUTTLE_CONTEXT) {
+            console.log(contexts[i]);
+            name = contexts[i].parameters.shuttleName; //assistant.getContextArgument("shuttle-ctx",'shuttleName');
+            hasPriorContext = true;
+            break;
+        }
+    }
+    if (hasPriorContext) {
+        var originalName = name;
+        name = "%"+name.toLowerCase()+"%";
+        var route_id = assistant.getArgument(IS_DAYTIME_SHUTTLE);
+        route_id = route_id.includes("daytime")? dayNightShuttle.get("Daytime"):dayNightShuttle.get("Night");
+        conn.query("SELECT * FROM shuttleStops WHERE " +
+            "name like $1 and route_id= $2",
+            [name, route_id], function(err, result){
+                var rowCount = result.rowCount;
+                if (rowCount == 0) {
+                    assistant.tell("Sorry, but I don't know a shuttle stop called " + originalName);
+                } else if (!err) {
+                        var stop_id = result.rows[0].stop_id;
+                        if (stop_id !== undefined && stop_id !== "") {
+                            requestArrivalEstimatesByStopId(originalName, stop_id, assistant);
+                        }
+                } else {
+                    console.log(err);
+                    assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
+                        "stop " + originalName);
                 }
-            } else {
-                console.log(err);
-                assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
-                    "stop " + originalName);
-            }
-        });
+            });
+    } else {
+        name = assistant.getArgument(SHUTTLE_STOP_ENTITY);
+        var originalName = name;
+
+        name = "%"+name.toLowerCase()+"%";
+        // find the stop_id
+        conn.query("SELECT * FROM shuttleStops WHERE " +
+            "name like $1",
+            [name], function(err, result){
+                var rowCount = result.rowCount;
+                if (rowCount == 0) {
+                    assistant.tell("Sorry, but I don't know a shuttle stop called " + name);
+                } else if (!err) {
+                    if (rowCount > 1) {
+                        console.log("more than 1 rowCount");
+                        assistant.setContext(SHUTTLE_CONTEXT, 2, {shuttleName: originalName});
+                        assistant.ask("Are you asking for daytime shuttle or evening time shuttle?");
+                    } else {
+                        var stop_id = result.rows[0].stop_id;
+                        if (stop_id !== undefined && stop_id !== "") {
+                            requestArrivalEstimatesByStopId(originalName, stop_id, assistant);
+                        }
+                    }
+                } else {
+                    console.log(err);
+                    assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
+                        "stop " + originalName);
+                }
+            });
+    }
 }
 
 function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
@@ -103,6 +154,8 @@ router.post('/', function(req, res, next) {
       case SHUTTLE:
         handleShuttle(assistant);
         break;
+        case SHUTTLE_FOLLOWUP:
+            handleShuttle(assistant);
     }
   }
 
