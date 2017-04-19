@@ -116,28 +116,37 @@ function handleShuttle(assistant) {
 }
 
 function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
-
     // These code snippets use an open-source library. http://unirest.io/nodejs
     unirest.get("https://transloc-api-1-2.p.mashape.com/arrival-estimates.json?agencies=635&callback=call&stops="+stop_id)
         .header("X-Mashape-Key", "0PiJbg4Ao5mshixwHHSHZTiy5ZGGp1ptfx1jsn82ux5n1i0qqe")
         .header("Accept", "application/json")
         .end(function (result) {
-            //console.log(result.status, result.headers, result.body);
             if (result.body.data.length == 0) {
-                assistant.tell("I'm sorry, but there are no arrival estimates for the stop at the time");
+                assistant.tell("I'm sorry, but there are no arrival estimates for the stop right now.");
             } else {
-                var next_arrival_time =  result.body.data[0].arrivals[0].arrival_at;
-                assistant.tell("The next shuttle will arrive at " + name + " at " + next_arrival_time);
-            }
+                var next_arrival_time_json_format =  result.body.data[0].arrivals[0].arrival_at;
+                var now = Date.now();
+                var arrival_time = new Date(next_arrival_time_json_format);
 
+                // getting the time diference until the next shuttle:
+                var date_diff = new Date(0);
+                date_diff.setMilliseconds(arrival_time - now);
+
+                // setting arrival time seconds to 0 so Google home doesn't read seconds
+                arrival_time.setSeconds(0);
+
+                if (date_diff.getMinutes() < 1) {
+                  assistant.tell("The shuttle is arriving now to " + name );
+                } else {
+                //TODO: add time from now (ie: "will arrive in 5 minutes at 6:24pm")
+                  assistant.tell("The next shuttle will arrive at " + name + " in " + date_diff.getMinutes() + " minutes " + " at " + arrival_time.toLocaleTimeString());
+                }
+            }
         });
 }
 var yellowBookMap = new Map();
 yellowBookMap.set("DPS", "401123456789");
 yellowBookMap.set("health service", "401999999999");
-
-
-
 
 /* GET home page. */
 router.post('/', function(req, res, next) {
