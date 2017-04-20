@@ -10,11 +10,14 @@ const ApiAiAssistant = require('actions-on-google').ApiAiAssistant;
 const DEPARTMENT_ENTITY = 'Brown_Department';
 const SHUTTLE_STOP_ENTITY = 'ShuttleStop';
 const IS_DAYTIME_SHUTTLE = "isDayTimeShuttle";
+const EATERY_ENTITY = 'Eatery';
+const MEALTIME_ENTITY = 'MealTime';
 
 // INTENTS:
 const BROWN_YELLOWBOOK = 'Brown Yellowbook';
 const SHUTTLE = 'Shuttle';
 const SHUTTLE_FOLLOWUP = "Shuttle-followup";
+const DINING = "Dining";
 
 // CONTEXTS
 const SHUTTLE_CONTEXT = "shuttle-ctx";
@@ -39,29 +42,135 @@ var dayNightShuttle = new Map();
 dayNightShuttle.set("Daytime", "4006812");
 dayNightShuttle.set("Night", "4006810");
 
-parseMenu();
+var diningHalls = new Map();
+const RATTY = "Ratty";
+const VDUB = "VDub";
+const ANDREWS = "Andrews";
+const BLUE_ROOM = "Blue Room";
+const JOS = "Jos";
+diningHalls.set(RATTY, "1531"); // Sharpe Refectory
+diningHalls.set(VDUB, "1532"); // TODO: Verney-Wooley
+// diningHalls.set(ANDREWS, "1533"); // Andrews Commons
+// diningHalls.set(BLUE_ROOM, "1534"); // Blue Room
+// diningHalls.set(JOS, "1535"); // Josiahs
 
-function parseMenu() {
-    // "http://legacy.cafebonappetit.com/api/2/menus?cafe=1536&date=2017-04-19"
-    unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe=1534&date=2017-04-19")
+const DESSERT = "dessert";
+const COMFORT = "comfort_food";
+const VEGETARIAN = "vegetarian_food";
+const PIZZA = "pizza";
+const SALAD = "salad";
+const OMELET = "omelet";
+var course = new Map();
+course.set(RATTY + DESSERT, "12278"); 
+course.set(RATTY + COMFORT, "12176");
+course.set(RATTY + VEGETARIAN, "12177"); 
+course.set(RATTY + PIZZA, "12305");
+course.set(RATTY + SALAD, "12174");
+course.set(RATTY + OMELET, "13506");
+
+var rattyChangingDishes = [course.get(RATTY + DESSERT), course.get(RATTY + VEGETARIAN), course.get(RATTY + COMFORT)];
+
+// var promise = getDiningTime("Ratty", formatDate(new Date()), "Breakfast");
+// promise.then(function (message) {
+//   console.log(message);
+// });
+
+// var promise2 = getFoodItem(5767821);
+// promise2.then(function (message) {
+//   console.log(message);
+// });
+
+/*
+  returns date in the format "YYYY-MM-DD"
+*/
+function formatDate(date) {
+  var year = date.getFullYear();
+  var month = date.getMonth();
+  var date = date.getDate();
+
+  month = new String(month + 1);
+  if (month.length == 1) {
+    month = 0 + month;
+  }
+
+  return year + "-" + month + "-" + date;
+}
+
+// returns dining hall menu (array of "dayparts")
+function getDiningHallInfo(json, diningHallCode) {
+  return json.body.days[0].cafes[diningHallCode];
+}
+
+// mealTime == Breakfast, Lunch or Dinner
+function getMeal(menu, mealTime) {
+  var allMeals = menu["dayparts"][0];
+
+  for (var i = 0; i < allMeals.length; i++) {
+    if (allMeals[i].label == mealTime) {
+      return allMeals[i];
+    }
+  }
+    return "Couldn't find meal for " + mealTime; // TODO
+}
+
+// if courses is empty, include all courses
+// else if courses is populated, only print out courses requested
+function getDiningMenu(diningHallName, date, mealType, courses=[]) {
+  var includeAllCourses = courses.length == 0;
+  var diningHallCode = diningHalls.get(diningHallName);
+  return new Promise(function(resolve, reject) { 
+    unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe="+ diningHallCode +"&date=" + date)
+      .header("Accept", "application/json")
+      .end(function (result) {
+          var menu = getDiningHallInfo(result, diningHallCode);
+          var item_lookup = result.body.items;
+          var allMealItems = getMeal(menu, mealType);
+          var stations = allMealItems["stations"];
+
+          var foodList = [];
+          for (var i = 0; i < stations.length; i++) {
+            if (!includeAllCourses) {
+              // if we don't want to include all courses, check to make sure the label is in courses
+              if (courses.indexOf(stations[i].id) < 0) {
+                continue;
+              }
+            }
+            // include/exclude dishes
+            for (var j = 0; j < stations[i].items.length; j++) {
+              var id = stations[i].items[j];
+              foodList.push(item_lookup[id].label);
+            }
+          }
+          resolve(foodList);
+    });
+  });
+}
+
+function getDiningTime(diningHallName, date, mealType) {
+  var diningHallCode = diningHalls.get(diningHallName);
+  return new Promise(function(resolve, reject) {
+      unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe="+ diningHallCode +"&date=" + date)
         .header("Accept", "application/json")
         .end(function (result) {
-            console.log("let's look at this json file");
+            var eatery = getDiningHallInfo(result, diningHallCode);
+            var mealTypeInfo = getMeal(eatery, mealType);
+            resolve({start: mealTypeInfo.starttime, end: mealTypeInfo.endtime});
+    });
+  });
+}
 
-            // for blueroom:
-            // this finds out the item id
-            //console.log(result.body.days[0].cafes["1534"]["dayparts"][0][0]["stations"]);
-            // this finds the item name and description based on item id
-            //console.log(result.body.items);
-
-            // arr = result.body.days[0].cafes["1536"]["dayparts"][0][1]["stations"]
-            // the above is an array, iterate through to look for "arr[i].label",which gives Tacos, Falafel
-            // Sandwitch bar, smoothies, pizza, etc.
-            //if (result.body.data.length == 0) {
-            //} else {
-            //
-            //}
-        });
+/*
+  input: id of food item
+  output: name of food associated with the id
+*/
+function getFoodItem(id) {
+  return new Promise(function (resolve, reject) {
+      unirest.get("http://legacy.cafebonappetit.com/api/2/items?item="+ id)
+      .header("Accept", "application/json")
+      .end(function (result) {
+        resolve(result.body.items[id].label);
+    });
+  });
 }
 
 function getNumber(assistant) {
@@ -72,6 +181,22 @@ function getNumber(assistant) {
   } else {
     assistant.tell("Sorry, but I couldn't find the contact information for " + dept);
   }
+}
+
+function handleDining(assistant) {
+  var eatery = assistant.getArgument(EATERY_ENTITY);
+  var meal_time = assistant.getArgument(MEALTIME_ENTITY)
+  var menu_items = getDiningMenu(eatery, formatDate(new Date()), meal_time, rattyChangingDishes);
+  menu_items.then(function (items) {
+    var message = "The rotating items on today's menu at the " + eatery + " are: ";
+    for (var i = 0; i < items.length; i++) {
+      message = message + " " + items[i] + ",";
+      if (i == items.length - 2) {
+        message = message  + " and";
+      }
+    }
+    assistant.tell(message);
+  });
 }
 
 function handleShuttle(assistant) {
@@ -169,9 +294,9 @@ function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
             }
         });
 }
-var yellowBookMap = new Map();
-yellowBookMap.set("DPS", "401123456789");
-yellowBookMap.set("health service", "401999999999");
+// var yellowBookMap = new Map();
+// yellowBookMap.set("DPS", "401123456789");
+// yellowBookMap.set("health service", "401999999999");
 
 /* GET home page. */
 router.post('/', function(req, res, next) {
@@ -179,17 +304,19 @@ router.post('/', function(req, res, next) {
   
   function responseHandler (assistant) {
 
-    const intent = req.body.result.metadata.intentName;//assistant.getIntent();
+    const intent = req.body.result.metadata.intentName;
     
     switch (intent) {
-     case BROWN_YELLOWBOOK:
-        getNumber(assistant);
-        break;
+     // case BROWN_YELLOWBOOK:
+     //    getNumber(assistant);
+     //    break;
       case SHUTTLE:
         handleShuttle(assistant);
         break;
-        case SHUTTLE_FOLLOWUP:
-            handleShuttle(assistant);
+      case SHUTTLE_FOLLOWUP:
+        handleShuttle(assistant);
+      case DINING:
+        handleDining(assistant);
     }
   }
 
