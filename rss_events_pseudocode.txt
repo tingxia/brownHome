@@ -1,5 +1,5 @@
 num_days = input("How many days of events would you like to hear about?")
-category = input("What sort of events would you like to hear about?")
+category = input("What sort of events are you interested in?")
 
 default_url = "http://events.brown.edu:/cal/main/listEvents.do?b=de&skinName=rss-list&setappvar=summaryMode(details)"
 
