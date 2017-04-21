@@ -45,13 +45,6 @@ router.get('/brownCentric', function(req, res, next) {
   res.render('index', { title: 'Express brown centric' });
 });
 
-// TODO:
-// - load this in dynamically based on location
-// - get information from csv?
-var yellowBookMap = new Map();
-yellowBookMap.set("DPS", "401 863 4111");
-yellowBookMap.set("health service", "401 863 3953");
-
 var dayNightShuttle = new Map();
 dayNightShuttle.set("Daytime", "4006812");
 dayNightShuttle.set("Night", "4006810");
@@ -63,14 +56,14 @@ const ANDREWS = "Andrews";
 const BLUE_ROOM = "Blue Room";
 const JOS = "Jos";
 diningHalls.set(RATTY, "1531"); // Sharpe Refectory
-diningHalls.set(VDUB, "1532"); // TODO: Verney-Wooley
+diningHalls.set(VDUB, "1532"); // Verney-Wooley
 diningHalls.set(ANDREWS, "1533"); // Andrews Commons
 diningHalls.set(BLUE_ROOM, "1534"); // Blue Room
 diningHalls.set(JOS, "1535"); // Josiahs
 
 const DESSERT = "dessert";
-const COMFORT = "comfort_food";
-const VEGETARIAN = "vegetarian_food";
+const COMFORT = "comfort";
+const VEGETARIAN = "vegetarian";
 const PIZZA = "pizza";
 const SALAD = "salad";
 const OMELET = "omelet";
@@ -79,15 +72,26 @@ const SPECIAL = "special";
 const SOUP = "soup";
 const STIRFRY = "stirfry";
 const DELI = "deli";
+const WOK = "wok";
+const PHO = "pho";
+const BAKERY = "bakery";
+const FOCACCIABAR = "focaccia";
+const BURRITOBAR = "burrito";
+const INDIAN = "indian";
+// const QUESADILLAS = "quesadilla"; // jo's-specific constants
+// const GRILL = "grill";
+// const WEEKDAYS = "weekdays";
+// const WEEKENDS = "weekends";
+
 var course = new Map();
-// Ratty Constants
+// Ratty Constants:
 course.set(RATTY + DESSERT, "12278"); 
 course.set(RATTY + COMFORT, "12176");
 course.set(RATTY + VEGETARIAN, "12177"); 
 course.set(RATTY + PIZZA, "12305");
 course.set(RATTY + SALAD, "12174");
 course.set(RATTY + OMELET, "13506");
-// Vdub Constants
+// Vdub Constants:
 course.set(VDUB + BREAKFAST, "12368");
 course.set(VDUB + DESSERT, "12405");
 course.set(VDUB + COMFORT, "12419");
@@ -96,11 +100,33 @@ course.set(VDUB + SOUP, "12404");
 course.set(VDUB + STIRFRY, "12420");
 course.set(VDUB + SALAD, "12402");
 course.set(VDUB + DELI, "12403");
+// Andrews Constants:
+course.set(ANDREWS + WOK, "12344");
+course.set(ANDREWS + PIZZA, "12341");
+course.set(ANDREWS + SPECIAL, "12342");
+course.set(ANDREWS + PHO, "12343");
+// Blue Room Constants:
+course.set(BLUE_ROOM + BAKERY, "12347");
+course.set(BLUE_ROOM + DELI, "12433");
+course.set(BLUE_ROOM + SOUP, "12348");
+course.set(BLUE_ROOM + FOCACCIABAR, "12421");
+course.set(BLUE_ROOM + BURRITOBAR, "12434");
+course.set(BLUE_ROOM + INDIAN, "12424");
+// Jo's Constants:
+// TODO doesn't support Jo's because Jo's data is formatted differently
+// course.set(JOS + SPECIAL, "12028"); // TODO: only supports specials on weekdays
+// course.set(JOS + SPECIAL + WEEKDAYS, "12028");
+// course.set(JOS + SPECIAL + WEEKENDS, "12365");
+// //course.set(JOS + QUESADILLAS, "12032");
+// course.set(JOS + GRILL, "12030");
+// course.set(JOS + SALAD, "12029");
 
 const defaultChangingDishes = new Map();
 defaultChangingDishes.set(VDUB, [course.get(VDUB + BREAKFAST), course.get(VDUB + DESSERT), course.get(VDUB + COMFORT), course.get(VDUB + SOUP), course.get(VDUB + STIRFRY)]);
 defaultChangingDishes.set(RATTY, [course.get(RATTY + DESSERT), course.get(RATTY + VEGETARIAN), course.get(RATTY + COMFORT)]);
-
+defaultChangingDishes.set(ANDREWS, [course.get(ANDREWS + WOK), course.get(ANDREWS + PIZZA), course.get(RATTY + SPECIAL), course.get(ANDREWS + PHO)]);
+defaultChangingDishes.set(BLUE_ROOM, [course.get(BLUE_ROOM + BAKERY), course.get(BLUE_ROOM + SOUP), course.get(BLUE_ROOM + INDIAN), course.get(BLUE_ROOM + BURRITOBAR)]);
+//defaultChangingDishes.set(JOS, [course.get(JOS + SPECIAL + WEEKDAYS), course.get(JOS + SPECIAL + WEEKENDS)]);
 
 const laundryTypeMap = new Map();
 laundryTypeMap.set("washer", "washFL");
@@ -216,6 +242,11 @@ function getNumber(assistant) {
 
 function handleDining(assistant) {
   var eatery = assistant.getArgument(EATERY_ENTITY);
+  if (eatery == JOS){
+      assistant.tell("Sorry, I do not support queries for Jo's menus yet. However, I do support Ratty, Blue Room, V-Dub and Andrews Commons.");
+    return;
+  }
+
   var meal_time = assistant.getArgument(MEALTIME_ENTITY);
   var food_types = assistant.getArgument(FOODTYPE_ENTITY);
 
