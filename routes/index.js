@@ -14,6 +14,9 @@ const IS_DAYTIME_SHUTTLE = "isDayTimeShuttle";
 const EATERY_ENTITY = 'Eatery';
 const MEALTIME_ENTITY = 'MealTime';
 const FOODTYPE_ENTITY = 'FoodType';
+const LAUNDRY_ENTITY = "LaundryRoom";
+const LAUNDRY_MACHINE_TYPE = "LaundryMachineType";
+
 
 // INTENTS:
 const SHUTTLE = 'Shuttle';
@@ -21,6 +24,7 @@ const SHUTTLE_FOLLOWUP = "Shuttle-followup";
 const DINING_MENU = "Dining";
 const DINING_HOURS = "DiningHours";
 const BROWN_EVENTS = 'BrownEvents';
+const LAUNDRY = "Laundry";
 
 // CONTEXTS
 const SHUTTLE_CONTEXT = "shuttle-ctx";
@@ -90,6 +94,11 @@ course.set(VDUB + DELI, "12403");
 const defaultChangingDishes = new Map();
 defaultChangingDishes.set(VDUB, [course.get(VDUB + BREAKFAST), course.get(VDUB + DESSERT), course.get(VDUB + COMFORT), course.get(VDUB + SOUP), course.get(VDUB + STIRFRY)]);
 defaultChangingDishes.set(RATTY, [course.get(RATTY + DESSERT), course.get(RATTY + VEGETARIAN), course.get(RATTY + COMFORT)]);
+
+
+const laundryTypeMap = new Map();
+laundryTypeMap.set("washer", "washFL");
+laundryTypeMap.set("dryer", "dblDry");
 
 /*
   returns date in the format "YYYY-MM-DD"
@@ -360,6 +369,64 @@ function handleBrownEvents(assistant) {
   });
 }
 
+function handleLaundry(assistant) {
+    var room = assistant.getArgument(LAUNDRY_ENTITY);
+    unirest.get("https://api.students.brown.edu/laundry/rooms?client_id=356e267c-3c75-418f-92a8-aec0eef5137c")
+        .header("Accept", "application/json")
+        .end(function (result) {
+            var id = "";
+            console.log(result.body);
+            var results = result.body.results;
+            for (var i = 0; i < results.length; i++) {
+                if (results[i].name.includes(room)) {
+                    id = results[i].id;
+                    break;
+                }
+            }
+            if (id === "") {
+                assistant.tell("Sorry, but I was not able to find the room" + room);
+            } else {
+                getLaundryRoomStatus(assistant, id);
+            }
+        });
+}
+
+function getLaundryRoomStatus(assistant, id) {
+    var originalType = assistant.getArgument(LAUNDRY_MACHINE_TYPE);
+    var laundryType = laundryTypeMap.get(originalType);
+    unirest.get("https://api.students.brown.edu/laundry/rooms/" + id +"/machines?client_id=356e267c-3c75-418f-92a8-aec0eef5137c&get_status=true")
+        .header("Accept", "application/json")
+        .end(function (result) {
+            var res = [];
+            var count = 0;
+            var response = "There are " + count + originalType + " that are available, and the" +
+                " ones in use have ";
+            for (var i = 0; i < result.body.results.length; i++) {
+                var curMachine = result.body.results[i];
+                if (curMachine.type.includes(laundryType)) {
+                    if (curMachine.avail) {
+                        res.push(-1);
+                        count += 1;
+                    } else {
+                        res.push(curMachine.time_remaining);
+                        response = response + curMachine.time_remaining + "minutes, "
+                    }
+                }
+            }
+            response = response + "left.";
+            if (res.length == 0) {
+                assistant.tell("Sorry, but I was not able to retrieve machine status at this time");
+            } else {
+                if (count == res.length) {
+                    assistant.tell("There are " + count + " " +originalType + " that are available");
+                } else {
+                    assistant.tell(response);
+                }
+            }
+
+        });
+
+}
 /* GET home page. */
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
@@ -383,6 +450,10 @@ router.post('/', function(req, res, next) {
       case BROWN_EVENTS:
         handleBrownEvents(assistant);
         break;
+        case LAUNDRY:
+            handleLaundry(assistant);
+            break;
+
     }
   }
   assistant.handleRequest(responseHandler);
