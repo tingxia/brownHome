@@ -1,3 +1,5 @@
+// entity documentation: https://docs.api.ai/docs/concept-entities#section-developer-enum-type-entities
+
 var express = require('express');
 //var shuttleDB = require('./shuttle')
 var router = express.Router();
@@ -17,6 +19,9 @@ const FOODTYPE_ENTITY = 'FoodType';
 const LAUNDRY_ENTITY = "LaundryRoom";
 const LAUNDRY_MACHINE_TYPE = "LaundryMachineType";
 
+const TIME_PERIOD_PARAMETER = 'TimePeriod'; // used in BrownEvents intent
+const EVENT_CATEGORY_ENTITY = 'EventCategory';
+
 
 // INTENTS:
 const SHUTTLE = 'Shuttle';
@@ -28,7 +33,7 @@ const LAUNDRY = "Laundry";
 
 // CONTEXTS
 const SHUTTLE_CONTEXT = "shuttle-ctx";
-const DINING_CONTEXT = "dining-followup";
+//const DINING_CONTEXT = "dining-followup";
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -354,17 +359,52 @@ function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
         });
 }
 
+//  input duration: {"amount": 10, "unit": min}
+function calcDays(duration) {
+  if (duration == "day" || duration == "today") {
+      return 1;
+  } else if (duration == "week"){
+      return 7;
+  } else if (duration == "month") {
+      return 31;
+  }
+
+  switch (duration["unit"]) {
+    case "day":
+      return duration.amount;
+    case "wk":
+      return duration.amount * 7;
+    case "month":
+      return duration.amount * 31;
+  }
+
+  return 2; // by default returns 2 days
+}
+
+/**
+ * Very basic - looks up events for a given category and time period (ie: next 5 days)
+ * @param assistant, google home assistant
+ */
 function handleBrownEvents(assistant) {
-  unirest.get("http://events.brown.edu:/cal/main/listEvents.do?b=de&skinName=rss-list&setappvar=summaryMode(details)&days=5&cat=CareerLAB")
+  var days = calcDays(assistant.getArgument(TIME_PERIOD_PARAMETER));
+  var eventCategory = assistant.getArgument(EVENT_CATEGORY_ENTITY);
+  if (eventCategory == null) {
+      eventCategory = "";
+  }
+  var message = eventCategory + " events in the next " + days + " days are: ";
+  unirest.get("http://events.brown.edu:/cal/main/listEvents.do?b=de&skinName=rss-list&setappvar=summaryMode(details)&days=" + days + "&cat=" + eventCategory)
     .header("Accept", "application/xml")
     .end(function (result) {
       parseString(result.body, function (err, result) {
         var list_events = result.rss.channel[0].item;
-        var message = "";
         for (var i = 0; i < list_events.length; i++) {
-          message = message + " " + list_events[i].title; // TODO: if they want to look up more events.... look up details, etc.
+          message = message + " " + list_events[i].title;
         }
-        assistant.tell(message);
+        if (list_events.length == 0) {
+            assistant.tell("There are no " + eventsCategory + " events in the next " + days + "days");
+        } else {
+            assistant.tell(message);
+        }
       });
   });
 }
@@ -434,7 +474,6 @@ router.post('/', function(req, res, next) {
   function responseHandler (assistant) {
 
     const intent = req.body.result.metadata.intentName;
-    console.log(intent);
     switch (intent) {
       case SHUTTLE:
         handleShuttle(assistant);
