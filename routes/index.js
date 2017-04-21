@@ -16,7 +16,6 @@ const MEALTIME_ENTITY = 'MealTime';
 const FOODTYPE_ENTITY = 'FoodType';
 
 // INTENTS:
-const BROWN_YELLOWBOOK = 'Brown Yellowbook';
 const SHUTTLE = 'Shuttle';
 const SHUTTLE_FOLLOWUP = "Shuttle-followup";
 const DINING_MENU = "Dining";
@@ -33,7 +32,7 @@ router.get('/', function(req, res, next) {
 });
 
 router.get('/brownCentric', function(req, res, next) {
-  res.render('index', { title: 'Express brown yellow book' });
+  res.render('index', { title: 'Express brown centric' });
 });
 
 // TODO:
@@ -360,9 +359,6 @@ function handleBrownEvents(assistant) {
       });
   });
 }
-// var yellowBookMap = new Map();
-// yellowBookMap.set("DPS", "401123456789");
-// yellowBookMap.set("health service", "401999999999");
 
 /* GET home page. */
 router.post('/', function(req, res, next) {
@@ -373,9 +369,6 @@ router.post('/', function(req, res, next) {
     const intent = req.body.result.metadata.intentName;
     console.log(intent);
     switch (intent) {
-     // case BROWN_YELLOWBOOK:
-     //    getNumber(assistant);
-     //    break;
       case SHUTTLE:
         handleShuttle(assistant);
         break;
