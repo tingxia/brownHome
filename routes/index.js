@@ -19,12 +19,14 @@ const FOODTYPE_ENTITY = 'FoodType';
 const TIME_PERIOD_PARAMETER = 'TimePeriod'; // used in BrownEvents intent
 const EVENT_CATEGORY_ENTITY = 'EventCategory';
 
-// INTENTS:
+// INTENTS (which double as actions):
 const SHUTTLE = 'Shuttle';
 const SHUTTLE_FOLLOWUP = "Shuttle-followup";
 const DINING_MENU = "Dining";
-const DINING_HOURS = "DiningHours";
 const BROWN_EVENTS = 'BrownEvents';
+
+// ACTIONS:
+const DINING_HOURS = "dining-hours";
 
 // CONTEXTS
 const SHUTTLE_CONTEXT = "shuttle-ctx";
@@ -58,9 +60,9 @@ const BLUE_ROOM = "Blue Room";
 const JOS = "Jos";
 diningHalls.set(RATTY, "1531"); // Sharpe Refectory
 diningHalls.set(VDUB, "1532"); // TODO: Verney-Wooley
-// diningHalls.set(ANDREWS, "1533"); // Andrews Commons
-// diningHalls.set(BLUE_ROOM, "1534"); // Blue Room
-// diningHalls.set(JOS, "1535"); // Josiahs
+diningHalls.set(ANDREWS, "1533"); // Andrews Commons
+diningHalls.set(BLUE_ROOM, "1534"); // Blue Room
+diningHalls.set(JOS, "1535"); // Josiahs
 
 const DESSERT = "dessert";
 const COMFORT = "comfort_food";
@@ -242,7 +244,6 @@ function handleDining(assistant) {
 }
 
 function handleDiningHours(assistant){
-  console.log("Handling Dining Hours");
   var eatery = assistant.getArgument(EATERY_ENTITY);
   var mealTime = assistant.getArgument(MEALTIME_ENTITY);
 
@@ -264,7 +265,7 @@ function handleShuttle(assistant) {
             break;
         }
     }
-    console.log("has prior context: " + hasPriorContext);
+
     if (hasPriorContext) {
         var originalName = name;
         name = "%"+name.toLowerCase()+"%";
@@ -403,27 +404,37 @@ function handleBrownEvents(assistant) {
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
   
-  function responseHandler (assistant) {
+  //function responseHandler (assistant) {
 
-    const intent = req.body.result.metadata.intentName;
-    switch (intent) {
-      case SHUTTLE:
-        handleShuttle(assistant);
-        break;
-      case SHUTTLE_FOLLOWUP:
-        handleShuttle(assistant);
-        break;
-      case DINING_MENU:
-        handleDining(assistant);
-        break;
-      case DINING_HOURS:
-        handleDiningHours(assistant);
-      case BROWN_EVENTS:
-        handleBrownEvents(assistant);
-        break;
-    }
-  }
-  assistant.handleRequest(responseHandler);
+  //   const intent = req.body.result.metadata.intentName;
+  //   switch (intent) {
+  //     case SHUTTLE:
+  //       handleShuttle(assistant);
+  //       break;
+  //     case SHUTTLE_FOLLOWUP:
+  //       handleShuttle(assistant);
+  //       break;
+  //     case DINING_MENU:
+  //       handleDining(assistant);
+  //       break;
+  //     case DINING_HOURS:
+  //       handleDiningHours(assistant);
+  //     case BROWN_EVENTS:
+  //       handleBrownEvents(assistant);
+  //       break;
+  //   }
+  // }
+
+  //assistant.handleRequest(responseHandler);
+
+  const actionMap = new Map();
+  actionMap.set(SHUTTLE, handleShuttle);
+  actionMap.set(SHUTTLE_FOLLOWUP, handleShuttle);
+  actionMap.set(DINING_MENU, handleDining);
+  actionMap.set(DINING_HOURS, handleDiningHours);
+  actionMap.set(BROWN_EVENTS, handleBrownEvents);
+  assistant.handleRequest(actionMap);
+
   //res.send();
 
 });
