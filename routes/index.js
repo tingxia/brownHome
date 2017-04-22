@@ -241,6 +241,7 @@ function getNumber(assistant) {
 }
 
 function handleDining(assistant) {
+    console.log("got here in handle dining");
   var eatery = assistant.getArgument(EATERY_ENTITY);
   if (eatery == JOS){
       assistant.tell("Sorry, I do not support queries for Jo's menus yet. However, I do support Ratty, Blue Room, V-Dub and Andrews Commons.");
@@ -441,6 +442,7 @@ function handleBrownEvents(assistant) {
 }
 
 function handleLaundry(assistant) {
+    console.log("got here in handle laundry");
     var room = assistant.getArgument(LAUNDRY_ENTITY);
     unirest.get("https://api.students.brown.edu/laundry/rooms?client_id=356e267c-3c75-418f-92a8-aec0eef5137c")
         .header("Accept", "application/json")
@@ -470,8 +472,7 @@ function getLaundryRoomStatus(assistant, id) {
         .end(function (result) {
             var res = [];
             var count = 0;
-            var response = "There are " + count + originalType + " that are available, and the" +
-                " ones in use have ";
+            var response = "";
             for (var i = 0; i < result.body.results.length; i++) {
                 var curMachine = result.body.results[i];
                 if (curMachine.type.includes(laundryType)) {
@@ -485,11 +486,15 @@ function getLaundryRoomStatus(assistant, id) {
                 }
             }
             response = response + "left.";
+            originalType = count == 1 ? originalType : originalType + "s";
+            var ones = res.length - count > 1 ? "ones in use have " : "one in use has ";
+            var be = count == 1? "is ":"are ";
+            response = "There " +  be  + count + " " +originalType + " available, and the " + ones + response;
             if (res.length == 0) {
                 assistant.tell("Sorry, but I was not able to retrieve machine status at this time");
             } else {
                 if (count == res.length) {
-                    assistant.tell("There are " + count + " " +originalType + " that are available");
+                    assistant.tell("There " + be + count + " " +originalType + " that are available");
                 } else {
                     assistant.tell(response);
                 }
@@ -502,31 +507,31 @@ function getLaundryRoomStatus(assistant, id) {
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
 
-    //     function responseHandler (assistant) {
-    //
-    //         const intent = req.body.result.metadata.intentName;
-    //         switch (intent) {
-    //             case SHUTTLE:
-    //                 handleShuttle(assistant);
-    //                 break;
-    //             case SHUTTLE_FOLLOWUP:
-    //                 handleShuttle(assistant);
-    //                 break;
-    //             case DINING_MENU:
-    //                 handleDining(assistant);
-    //                 break;
-    //             case DINING_HOURS:
-    //                 handleDiningHours(assistant);
-    //             case BROWN_EVENTS:
-    //                 handleBrownEvents(assistant);
-    //                 break;
-    //             case LAUNDRY:
-    //                 handleLaundry(assistant);
-    //                 break;
-    //
-    //         }
-    //     }
-    // assistant.handleRequest(responseHandler);
+     //    function responseHandler (assistant) {
+     //
+     //        const intent = req.body.result.metadata.intentName;
+     //        switch (intent) {
+     //            case SHUTTLE:
+     //                handleShuttle(assistant);
+     //                break;
+     //            case SHUTTLE_FOLLOWUP:
+     //                handleShuttle(assistant);
+     //                break;
+     //            case DINING_MENU:
+     //                handleDining(assistant);
+     //                break;
+     //            case DINING_HOURS:
+     //                handleDiningHours(assistant);
+     //            case BROWN_EVENTS:
+     //                handleBrownEvents(assistant);
+     //                break;
+     //            case LAUNDRY:
+     //                handleLaundry(assistant);
+     //                break;
+     //
+     //        }
+     //    }
+     //assistant.handleRequest(responseHandler);
 
 
   const actionMap = new Map();
