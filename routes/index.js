@@ -154,49 +154,30 @@ function getDiningHallInfo(json, diningHallCode) {
 }
 
 // mealTime == Breakfast, Lunch or Dinner
+// returns station information if mealTime is valid; else returns a list of valid mealtimes
 function getMeal(menu, mealTime) {
   var allMeals = menu["dayparts"][0];
-
+  var validMealTimes = [];
   for (var i = 0; i < allMeals.length; i++) {
     if (allMeals[i].label == mealTime) {
       return allMeals[i];
     }
+    validMealTimes.push(allMeals[i].label)
   }
-    return "Couldn't find meal for " + mealTime; // TODO
+    console.log("invali meal time. returning list of valid mealtimes!");
+    return validMealTimes
 }
 
-// if courses is empty, include all courses
-// else if courses is populated, only print out courses requested
-function getDiningMenu(diningHallName, date, mealType, courses=[]) {
-  var includeAllCourses = courses.length == 0;
+// gets menu json
+function getDiningMenu(diningHallName, date) {
+  //var includeAllCourses = courses.length == 0;
   var diningHallCode = diningHalls.get(diningHallName);
-  
-  return new Promise(function(resolve, reject) { 
+  return new Promise(function(resolve, reject) {
+    console.log(reject);
     unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe="+ diningHallCode +"&date=" + date)
       .header("Accept", "application/json")
       .end(function (result) {
-
-          var menu = getDiningHallInfo(result, diningHallCode);
-
-          var item_lookup = result.body.items;
-          var allMealItems = getMeal(menu, mealType);
-          var stations = allMealItems["stations"];
-
-          var foodList = [];
-          for (var i = 0; i < stations.length; i++) {
-            if (!includeAllCourses) {
-              // if we don't want to include all courses, check to make sure the label is in courses
-              if (courses.indexOf(stations[i].id) < 0) {
-                continue;
-              }
-            }
-            // include/exclude dishes
-            for (var j = 0; j < stations[i].items.length; j++) {
-              var id = stations[i].items[j];
-              foodList.push(item_lookup[id].label);
-            }
-          }
-          resolve(foodList);
+          resolve(result);
     });
   });
 }
@@ -241,7 +222,6 @@ function getNumber(assistant) {
 }
 
 function handleDining(assistant) {
-    console.log("got here in handle dining");
   var eatery = assistant.getArgument(EATERY_ENTITY);
   if (eatery == JOS){
       assistant.tell("Sorry, I do not support queries for Jo's menus yet. However, I do support Ratty, Blue Room, V-Dub and Andrews Commons.");
@@ -251,6 +231,7 @@ function handleDining(assistant) {
   var meal_time = assistant.getArgument(MEALTIME_ENTITY);
   var food_types = assistant.getArgument(FOODTYPE_ENTITY);
 
+  //setting up items to look up
   var coursesToLookUp = [];
   var message = "";
   if (food_types.length == 0) {
@@ -267,20 +248,53 @@ function handleDining(assistant) {
     message = message + " options at the " + eatery + " for " + meal_time + " are: ";
   }
   
-  var menu_items = getDiningMenu(eatery, formatDate(new Date()), meal_time, coursesToLookUp);
-  menu_items.then(function (items) {
-    for (var i = 0; i < items.length; i++) {
-      message = message + " " + items[i] + ",";
-      if (i == items.length - 2) {
-        message = message  + " and";
-      }
-    }
+  var menu = getDiningMenu(eatery, formatDate(new Date()));
+  menu.then(function (result) {
 
-    if (items.length == 0) {
-      assistant.tell("Sorry, I couldn't find any items.")
-    } else {
-      assistant.tell(message);
-    }
+      var allMealItems = getMeal(getDiningHallInfo(result, diningHalls.get(eatery)), meal_time);
+
+      if (allMealItems["stations"] == undefined) {
+        // mealType doesn't exist for this dining hall
+          message = meal_time + " at " + eatery + " does not exist today. Try ";
+          for (var i = 0; i < allMealItems.length; i++) {
+              message = message + " " + allMealItems[i];
+              if (i == allMealItems.length - 2) {
+                  message = message + " or";
+              }
+          }
+          assistant.tell(message);
+      } else {
+          var item_lookup = result.body.items;
+          var stations = allMealItems["stations"];
+          var foodList = [];
+          var includeAllCourses = coursesToLookUp != [];
+          for (var i = 0; i < stations.length; i++) {
+              if (!includeAllCourses) {
+                  // if we don't want to include all courses, check to make sure the label is in courses
+                  if (courses.indexOf(stations[i].id) < 0) {
+                      continue;
+                  }
+              }
+              // include/exclude dishes
+              for (var j = 0; j < stations[i].items.length; j++) {
+                  var id = stations[i].items[j];
+                  foodList.push(item_lookup[id].label);
+              }
+          }
+
+          for (var i = 0; i < foodList.length; i++) {
+              message = message + " " + foodList[i] + ",";
+              if (i == foodList.length - 2) {
+                  message = message  + " and";
+              }
+          }
+
+          if (foodList.length == 0) {
+              assistant.tell("Sorry, I couldn't find any items.")
+          } else {
+              assistant.tell(message);
+          }
+      }
   });
 }
 
