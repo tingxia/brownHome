@@ -19,6 +19,7 @@ const FOODTYPE_ENTITY = 'FoodType';
 const LAUNDRY_ENTITY = "LaundryRoom";
 const LAUNDRY_MACHINE_TYPE = "LaundryMachineType";
 const DATE_ENTITY = "Date";
+const FOODRESTRICTION_ENTITY = "FoodRestriction";
 
 const TIME_PERIOD_PARAMETER = 'TimePeriod'; // used in BrownEvents intent
 const EVENT_CATEGORY_ENTITY = 'EventCategory';
@@ -129,6 +130,11 @@ defaultChangingDishes.set(ANDREWS, [course.get(ANDREWS + WOK), course.get(ANDREW
 defaultChangingDishes.set(BLUE_ROOM, [course.get(BLUE_ROOM + BAKERY), course.get(BLUE_ROOM + SOUP), course.get(BLUE_ROOM + INDIAN), course.get(BLUE_ROOM + BURRITOBAR)]);
 //defaultChangingDishes.set(JOS, [course.get(JOS + SPECIAL + WEEKDAYS), course.get(JOS + SPECIAL + WEEKENDS)]);
 
+const foodRestrictionsMap = new Map();
+foodRestrictionsMap.set("vegetarian", ["1", "4"]); // vegetarian includes items labeled vegan
+foodRestrictionsMap.set("vegan", ["4"]);
+foodRestrictionsMap.set("gluten-free", ["9"]);
+
 const laundryTypeMap = new Map();
 laundryTypeMap.set("washer", "washFL");
 laundryTypeMap.set("dryer", "dblDry");
@@ -165,7 +171,6 @@ function getMeal(menu, mealTime) {
     }
     validMealTimes.push(allMeals[i].label)
   }
-    console.log("invali meal time. returning list of valid mealtimes!");
     return validMealTimes
 }
 
@@ -174,7 +179,6 @@ function getDiningJson(diningHallName, date) {
   //var includeAllCourses = courses.length == 0;
   var diningHallCode = diningHalls.get(diningHallName);
   return new Promise(function(resolve, reject) {
-    console.log(reject);
     unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe="+ diningHallCode +"&date=" + date)
       .header("Accept", "application/json")
       .end(function (result) {
@@ -232,17 +236,32 @@ function handleDining(assistant) {
   var meal_time = assistant.getArgument(MEALTIME_ENTITY);
   var food_types = assistant.getArgument(FOODTYPE_ENTITY);
   var date = assistant.getArgument(DATE_ENTITY);
+  var original_food_restriction = assistant.getArgument(FOODRESTRICTION_ENTITY);
+  var food_restriction = null;
+
   if (date == null || date == "today") {
       date = formatDate(new Date());
   }
 
-  //setting up items to look up
+  if (original_food_restriction != null) {
+      food_restriction = foodRestrictionsMap.get(original_food_restriction);
+  }
+
+  //setting up items to look up & messages
   var coursesToLookUp = [];
   var message = "";
   if (food_types.length == 0) {
     coursesToLookUp = defaultChangingDishes.get(eatery);
-    message = "The main items on the menu on " + date  + " for " + meal_time + " at " + eatery + " are: ";
+    if (food_restriction == null) {
+        message = "The main items on the menu on " + date  + " for " + meal_time + " at " + eatery + " are: ";
+    } else {
+        message = "The main " + original_food_restriction + " options on the menu on " + date  + " for " + meal_time + " at " + eatery + " are: ";
+    }
+
   } else {
+  if (food_restriction != null) {
+      message = original_food_restriction + " ";
+  }
     for (var i = 0; i < food_types.length; i++) {
       coursesToLookUp.push(course.get(eatery + food_types[i]));
       message = message + food_types[i] + " ";
@@ -256,11 +275,13 @@ function handleDining(assistant) {
   var menu = getDiningJson(eatery, date);
 
   menu.then(function (result) {
+
       var allMealItems = getMeal(getDiningHallInfo(result, diningHalls.get(eatery)), meal_time);
+
       if (allMealItems["stations"] == undefined) {
         // mealType doesn't exist for this dining hall
           if (allMealItems.length == 0) {
-              assistant.tell("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed.");
+              assistant.tell("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed for " + meal_time);
           } else {
 
               message = meal_time + " at " + eatery + " does not exist. Try: ";
@@ -276,18 +297,31 @@ function handleDining(assistant) {
           var item_lookup = result.body.items;
           var stations = allMealItems["stations"];
           var foodList = [];
-          var includeAllCourses = coursesToLookUp != [];
+          // front-end deals with determining whether coursesToLookUp is correct (check FoodType Entity)
+          // assumption coursesToLookup is valid
+          var includeAllCourses = coursesToLookUp == []; // include all courses if coursesToLookUp is empty
           for (var i = 0; i < stations.length; i++) {
               if (!includeAllCourses) {
                   // if we don't want to include all courses, check to make sure the label is in courses
-                  if (courses.indexOf(stations[i].id) < 0) {
+                  if (coursesToLookUp.indexOf(stations[i].id) < 0) {
                       continue;
                   }
               }
+
               // include/exclude dishes
               for (var j = 0; j < stations[i].items.length; j++) {
                   var id = stations[i].items[j];
-                  foodList.push(item_lookup[id].label);
+                  if (food_restriction != null) {
+                      // if there are food restrictions, then only add items to the list that are OK
+                      for (var k = 0; k < food_restriction.length; k++) {
+                          if (item_lookup[id]["cor_icon"][food_restriction[k]] != undefined) {
+                              foodList.push(item_lookup[id].label);
+                              continue;
+                          }
+                      }
+                  } else {
+                      foodList.push(item_lookup[id].label);
+                  }
               }
           }
 
@@ -298,8 +332,19 @@ function handleDining(assistant) {
               }
           }
 
-          if (foodList.length == 0) {
-              assistant.tell("Sorry, I couldn't find any items.")
+          if (foodList.length == 0 && food_types.length == 0 && food_restriction == null) {
+              assistant.tell("Sorry, I couldn't find any items for " + eatery + " at " + meal_time);
+          } else if (foodList.length == 0 && food_restriction != null){
+              assistant.tell("Sorry, I couldn't find any " + original_food_restriction + " options for " + eatery + " at " + meal_time);
+          } else if (foodList.length == 0) {
+              message = "Sorry, I couldn't find any items for " + eatery + " at " + meal_time + " in the category ";
+              for (var i = 0; i < food_types.length; i++) {
+                  message = message + " " + food_types[i];
+                  if (i == food_types.length - 2) {
+                      message = message + " or";
+                  }
+              }
+              assistant.tell(message);
           } else {
               assistant.tell(message);
           }
@@ -310,14 +355,14 @@ function handleDining(assistant) {
 function handleDiningHours(assistant){
   var eatery = assistant.getArgument(EATERY_ENTITY);
   var mealTime = assistant.getArgument(MEALTIME_ENTITY);
-  var time = assistant.getArgument(DATE_ENTITY);
+  var date = assistant.getArgument(DATE_ENTITY);
 
-  var hours_promise = getDiningTime(eatery, time, mealTime);
+  var hours_promise = getDiningTime(eatery, date, mealTime);
   hours_promise.then(function (ret) {
       if (ret.start == undefined) {
-          assistant.tell(eatery + " is not serving " + mealTime + " on " + time);
+          assistant.tell(eatery + " is not serving " + mealTime + " on " + date);
       } else {
-          assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end);
+          assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " on " + date);
       }
     });
 }
