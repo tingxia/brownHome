@@ -241,7 +241,7 @@ function handleDining(assistant) {
   var message = "";
   if (food_types.length == 0) {
     coursesToLookUp = defaultChangingDishes.get(eatery);
-    message = "The rotating items for " + date  + " for " + meal_time + " at " + eatery + " are: ";
+    message = "The main items on the menu on " + date  + " for " + meal_time + " at " + eatery + " are: ";
   } else {
     for (var i = 0; i < food_types.length; i++) {
       coursesToLookUp.push(course.get(eatery + food_types[i]));
