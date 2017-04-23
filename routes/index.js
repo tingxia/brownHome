@@ -1,30 +1,27 @@
 // entity documentation: https://docs.api.ai/docs/concept-entities#section-developer-enum-type-entities
 
 var express = require('express');
-//var shuttleDB = require('./shuttle')
+
 var router = express.Router();
-var anyDB = require('any-db');
-var conn = anyDB.createConnection('sqlite3://data/test.db');
 var unirest = require('unirest');
 const ApiAiAssistant = require('actions-on-google').ApiAiAssistant;
 var parseString = require('xml2js').parseString;
+var laundryFunction = require('./laundry.js');
+var shuttleFunction = require('./shuttle.js');
+
+
 
 // ENTITIES:
 const DEPARTMENT_ENTITY = 'Brown_Department';
-const SHUTTLE_STOP_ENTITY = 'ShuttleStop';
-const IS_DAYTIME_SHUTTLE = "isDayTimeShuttle";
 const EATERY_ENTITY = 'Eatery';
 const MEALTIME_ENTITY = 'MealTime';
 const FOODTYPE_ENTITY = 'FoodType';
-const LAUNDRY_ENTITY = "LaundryRoom";
-const LAUNDRY_MACHINE_TYPE = "LaundryMachineType";
 
 const TIME_PERIOD_PARAMETER = 'TimePeriod'; // used in BrownEvents intent
 const EVENT_CATEGORY_ENTITY = 'EventCategory';
 
 // INTENTS (which double as actions):
 const SHUTTLE = 'Shuttle';
-const SHUTTLE_FOLLOWUP = "Shuttle-followup";
 const DINING_MENU = "Dining";
 const BROWN_EVENTS = 'BrownEvents';
 const LAUNDRY = "Laundry";
@@ -33,7 +30,6 @@ const LAUNDRY = "Laundry";
 const DINING_HOURS = "dining-hours";
 
 // CONTEXTS
-const SHUTTLE_CONTEXT = "shuttle-ctx";
 //const DINING_CONTEXT = "dining-followup";
 
 /* GET home page. */
@@ -45,9 +41,6 @@ router.get('/brownCentric', function(req, res, next) {
   res.render('index', { title: 'Express brown centric' });
 });
 
-var dayNightShuttle = new Map();
-dayNightShuttle.set("Daytime", "4006812");
-dayNightShuttle.set("Night", "4006810");
 
 var diningHalls = new Map();
 const RATTY = "Ratty";
@@ -128,9 +121,6 @@ defaultChangingDishes.set(ANDREWS, [course.get(ANDREWS + WOK), course.get(ANDREW
 defaultChangingDishes.set(BLUE_ROOM, [course.get(BLUE_ROOM + BAKERY), course.get(BLUE_ROOM + SOUP), course.get(BLUE_ROOM + INDIAN), course.get(BLUE_ROOM + BURRITOBAR)]);
 //defaultChangingDishes.set(JOS, [course.get(JOS + SPECIAL + WEEKDAYS), course.get(JOS + SPECIAL + WEEKENDS)]);
 
-const laundryTypeMap = new Map();
-laundryTypeMap.set("washer", "washFL");
-laundryTypeMap.set("dryer", "dblDry");
 
 /*
   returns date in the format "YYYY-MM-DD"
@@ -294,102 +284,6 @@ function handleDiningHours(assistant){
   });
 }
 
-function handleShuttle(assistant) {
-    var contexts = assistant.getContexts();
-    var hasPriorContext = false;
-    var name = null;
-    for (var i=0; i < contexts.length; i++) {
-        if (contexts[i].name === SHUTTLE_CONTEXT) {
-            console.log(contexts[i]);
-            name = contexts[i].parameters.shuttleName; //assistant.getContextArgument("shuttle-ctx",'shuttleName');
-            hasPriorContext = true;
-            break;
-        }
-    }
-
-    if (hasPriorContext) {
-        var originalName = name;
-        name = "%"+name.toLowerCase()+"%";
-        var route_id = assistant.getArgument(IS_DAYTIME_SHUTTLE);
-        route_id = route_id.includes("daytime")? dayNightShuttle.get("Daytime"):dayNightShuttle.get("Night");
-
-        conn.query("SELECT * FROM shuttleStops WHERE " +
-            "name like $1 and route_id= $2",
-            [name, route_id], function(err, result){
-                if (err) {
-                  console.log(err);
-                    assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
-                        "stop " + originalName);
-                } else if (result.rowCount == 0) {
-                    assistant.tell("Sorry, but I don't know a shuttle stop called " + originalName);
-                } else if (!err) {
-                        var stop_id = result.rows[0].stop_id;
-                        if (stop_id !== undefined && stop_id !== "") {
-                            requestArrivalEstimatesByStopId(originalName, stop_id, assistant);
-                        }
-                }
-            });
-    } else {
-        name = assistant.getArgument(SHUTTLE_STOP_ENTITY);
-        var originalName = name;
-
-        name = "%"+name.toLowerCase()+"%";
-        // find the stop_id
-        conn.query("SELECT * FROM shuttleStops WHERE " +
-            "name like $1",
-            [name], function(err, result){
-                var rowCount = result.rowCount;
-                if (rowCount == 0) {
-                    assistant.tell("Sorry, but I don't know a shuttle stop called " + originalName);
-                } else if (!err) {
-                    if (rowCount > 1) {
-                        //console.log("more than 1 rowCount");
-                        assistant.setContext(SHUTTLE_CONTEXT, 2, {shuttleName: originalName});
-                        assistant.ask("Are you asking for daytime shuttle or evening time shuttle?");
-                    } else {
-                        var stop_id = result.rows[0].stop_id;
-                        if (stop_id !== undefined && stop_id !== "") {
-                            requestArrivalEstimatesByStopId(originalName, stop_id, assistant);
-                        }
-                    }
-                } else {
-                    console.log(err);
-                    assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
-                        "stop " + originalName);
-                }
-            });
-    }
-}
-
-function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
-    // These code snippets use an open-source library. http://unirest.io/nodejs
-    unirest.get("https://transloc-api-1-2.p.mashape.com/arrival-estimates.json?agencies=635&callback=call&stops="+stop_id)
-        .header("X-Mashape-Key", "0PiJbg4Ao5mshixwHHSHZTiy5ZGGp1ptfx1jsn82ux5n1i0qqe")
-        .header("Accept", "application/json")
-        .end(function (result) {
-            if (result.body.data.length == 0) {
-                assistant.tell("I'm sorry, but there are no arrival estimates for the stop right now.");
-            } else {
-                var next_arrival_time_json_format =  result.body.data[0].arrivals[0].arrival_at;
-                var now = Date.now();
-                var arrival_time = new Date(next_arrival_time_json_format);
-
-                // getting the time diference until the next shuttle:
-                var date_diff = new Date(0);
-                date_diff.setMilliseconds(arrival_time - now);
-
-                // setting arrival time seconds to 0 so Google home doesn't read seconds
-                arrival_time.setSeconds(0);
-
-                if (date_diff.getMinutes() < 1) {
-                  assistant.tell("The shuttle is arriving now at " + name);
-                } else {
-                //TODO: add time from now (ie: "will arrive in 5 minutes at 6:24pm")
-                  assistant.tell("The next shuttle will arrive at " + name + " in " + date_diff.getMinutes() + " minutes " + " at " + arrival_time.toLocaleTimeString());
-                }
-            }
-        });
-}
 
 //  input duration: {"amount": 10, "unit": min}
 function calcDays(duration) {
@@ -441,68 +335,7 @@ function handleBrownEvents(assistant) {
   });
 }
 
-function handleLaundry(assistant) {
-    console.log("got here in handle laundry");
-    var room = assistant.getArgument(LAUNDRY_ENTITY);
-    unirest.get("https://api.students.brown.edu/laundry/rooms?client_id=356e267c-3c75-418f-92a8-aec0eef5137c")
-        .header("Accept", "application/json")
-        .end(function (result) {
-            var id = "";
-            console.log(result.body);
-            var results = result.body.results;
-            for (var i = 0; i < results.length; i++) {
-                if (results[i].name.includes(room)) {
-                    id = results[i].id;
-                    break;
-                }
-            }
-            if (id === "") {
-                assistant.tell("Sorry, but I was not able to find the room" + room);
-            } else {
-                getLaundryRoomStatus(assistant, id);
-            }
-        });
-}
 
-function getLaundryRoomStatus(assistant, id) {
-    var originalType = assistant.getArgument(LAUNDRY_MACHINE_TYPE);
-    var laundryType = laundryTypeMap.get(originalType);
-    unirest.get("https://api.students.brown.edu/laundry/rooms/" + id +"/machines?client_id=356e267c-3c75-418f-92a8-aec0eef5137c&get_status=true")
-        .header("Accept", "application/json")
-        .end(function (result) {
-            var res = [];
-            var count = 0;
-            var response = "";
-            for (var i = 0; i < result.body.results.length; i++) {
-                var curMachine = result.body.results[i];
-                if (curMachine.type.includes(laundryType)) {
-                    if (curMachine.avail) {
-                        res.push(-1);
-                        count += 1;
-                    } else {
-                        res.push(curMachine.time_remaining);
-                        response = response + curMachine.time_remaining + "minutes, "
-                    }
-                }
-            }
-            response = response + "left.";
-            originalType = count == 1 ? originalType : originalType + "s";
-            var ones = res.length - count > 1 ? "ones in use have " : "one in use has ";
-            var be = count == 1? "is ":"are ";
-            response = "There " +  be  + count + " " +originalType + " available, and the " + ones + response;
-            if (res.length == 0) {
-                assistant.tell("Sorry, but I was not able to retrieve machine status at this time");
-            } else {
-                if (count == res.length) {
-                    assistant.tell("There " + be + count + " " +originalType + " that are available");
-                } else {
-                    assistant.tell(response);
-                }
-            }
-
-        });
-
-}
 /* GET home page. */
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
@@ -512,7 +345,7 @@ router.post('/', function(req, res, next) {
      //        const intent = req.body.result.metadata.intentName;
      //        switch (intent) {
      //            case SHUTTLE:
-     //                handleShuttle(assistant);
+     //                shuttleFunction.handleShuttle(assistant);
      //                break;
      //            case SHUTTLE_FOLLOWUP:
      //                handleShuttle(assistant);
@@ -526,7 +359,7 @@ router.post('/', function(req, res, next) {
      //                handleBrownEvents(assistant);
      //                break;
      //            case LAUNDRY:
-     //                handleLaundry(assistant);
+     //                laundryFunction.handleLaundry(assistant);
      //                break;
      //
      //        }
@@ -535,14 +368,12 @@ router.post('/', function(req, res, next) {
 
 
   const actionMap = new Map();
-  actionMap.set(SHUTTLE, handleShuttle);
-  actionMap.set(SHUTTLE_FOLLOWUP, handleShuttle);
+  actionMap.set(SHUTTLE, shuttleFunction.handleShuttle);
   actionMap.set(DINING_MENU, handleDining);
   actionMap.set(DINING_HOURS, handleDiningHours);
   actionMap.set(BROWN_EVENTS, handleBrownEvents);
-  actionMap.set(LAUNDRY, handleLaundry);
+  actionMap.set(LAUNDRY, laundryFunction.handleLaundry);
   assistant.handleRequest(actionMap);
-
 
   //res.send();
 
