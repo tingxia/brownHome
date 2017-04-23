@@ -17,6 +17,9 @@ const EATERY_ENTITY = 'Eatery';
 const MEALTIME_ENTITY = 'MealTime';
 const FOODTYPE_ENTITY = 'FoodType';
 
+const DATE_ENTITY = "Date";
+const FOODRESTRICTION_ENTITY = "FoodRestriction";
+
 const TIME_PERIOD_PARAMETER = 'TimePeriod'; // used in BrownEvents intent
 const EVENT_CATEGORY_ENTITY = 'EventCategory';
 
@@ -122,6 +125,11 @@ defaultChangingDishes.set(BLUE_ROOM, [course.get(BLUE_ROOM + BAKERY), course.get
 //defaultChangingDishes.set(JOS, [course.get(JOS + SPECIAL + WEEKDAYS), course.get(JOS + SPECIAL + WEEKENDS)]);
 
 
+const foodRestrictionsMap = new Map();
+foodRestrictionsMap.set("vegetarian", ["1", "4"]); // vegetarian includes items labeled vegan
+foodRestrictionsMap.set("vegan", ["4"]);
+foodRestrictionsMap.set("gluten-free", ["9"]);
+
 /*
   returns date in the format "YYYY-MM-DD"
 */
@@ -144,49 +152,28 @@ function getDiningHallInfo(json, diningHallCode) {
 }
 
 // mealTime == Breakfast, Lunch or Dinner
+// returns station information if mealTime is valid; else returns a list of valid mealtimes
 function getMeal(menu, mealTime) {
   var allMeals = menu["dayparts"][0];
-
+  var validMealTimes = [];
   for (var i = 0; i < allMeals.length; i++) {
     if (allMeals[i].label == mealTime) {
       return allMeals[i];
     }
+    validMealTimes.push(allMeals[i].label)
   }
-    return "Couldn't find meal for " + mealTime; // TODO
+    return validMealTimes
 }
 
-// if courses is empty, include all courses
-// else if courses is populated, only print out courses requested
-function getDiningMenu(diningHallName, date, mealType, courses=[]) {
-  var includeAllCourses = courses.length == 0;
+// gets dining json
+function getDiningJson(diningHallName, date) {
+  //var includeAllCourses = courses.length == 0;
   var diningHallCode = diningHalls.get(diningHallName);
-  
-  return new Promise(function(resolve, reject) { 
+  return new Promise(function(resolve, reject) {
     unirest.get("http://legacy.cafebonappetit.com/api/2/menus?cafe="+ diningHallCode +"&date=" + date)
       .header("Accept", "application/json")
       .end(function (result) {
-
-          var menu = getDiningHallInfo(result, diningHallCode);
-
-          var item_lookup = result.body.items;
-          var allMealItems = getMeal(menu, mealType);
-          var stations = allMealItems["stations"];
-
-          var foodList = [];
-          for (var i = 0; i < stations.length; i++) {
-            if (!includeAllCourses) {
-              // if we don't want to include all courses, check to make sure the label is in courses
-              if (courses.indexOf(stations[i].id) < 0) {
-                continue;
-              }
-            }
-            // include/exclude dishes
-            for (var j = 0; j < stations[i].items.length; j++) {
-              var id = stations[i].items[j];
-              foodList.push(item_lookup[id].label);
-            }
-          }
-          resolve(foodList);
+          resolve(result);
     });
   });
 }
@@ -231,7 +218,6 @@ function getNumber(assistant) {
 }
 
 function handleDining(assistant) {
-    console.log("got here in handle dining");
   var eatery = assistant.getArgument(EATERY_ENTITY);
   if (eatery == JOS){
       assistant.tell("Sorry, I do not support queries for Jo's menus yet. However, I do support Ratty, Blue Room, V-Dub and Andrews Commons.");
@@ -240,13 +226,33 @@ function handleDining(assistant) {
 
   var meal_time = assistant.getArgument(MEALTIME_ENTITY);
   var food_types = assistant.getArgument(FOODTYPE_ENTITY);
+  var date = assistant.getArgument(DATE_ENTITY);
+  var original_food_restriction = assistant.getArgument(FOODRESTRICTION_ENTITY);
+  var food_restriction = null;
 
+  if (date == null || date == "today") {
+      date = formatDate(new Date());
+  }
+
+  if (original_food_restriction != null) {
+      food_restriction = foodRestrictionsMap.get(original_food_restriction);
+  }
+
+  //setting up items to look up & messages
   var coursesToLookUp = [];
   var message = "";
   if (food_types.length == 0) {
     coursesToLookUp = defaultChangingDishes.get(eatery);
-    message = "The rotating items on today's menu for " + meal_time + " at the " + eatery + " are: ";
+    if (food_restriction == null) {
+        message = "The main items on the menu on " + date  + " for " + meal_time + " at " + eatery + " are: ";
+    } else {
+        message = "The main " + original_food_restriction + " options on the menu on " + date  + " for " + meal_time + " at " + eatery + " are: ";
+    }
+
   } else {
+  if (food_restriction != null) {
+      message = original_food_restriction + " ";
+  }
     for (var i = 0; i < food_types.length; i++) {
       coursesToLookUp.push(course.get(eatery + food_types[i]));
       message = message + food_types[i] + " ";
@@ -256,32 +262,100 @@ function handleDining(assistant) {
     }
     message = message + " options at the " + eatery + " for " + meal_time + " are: ";
   }
-  
-  var menu_items = getDiningMenu(eatery, formatDate(new Date()), meal_time, coursesToLookUp);
-  menu_items.then(function (items) {
-    for (var i = 0; i < items.length; i++) {
-      message = message + " " + items[i] + ",";
-      if (i == items.length - 2) {
-        message = message  + " and";
-      }
-    }
 
-    if (items.length == 0) {
-      assistant.tell("Sorry, I couldn't find any items.")
-    } else {
-      assistant.tell(message);
-    }
+  var menu = getDiningJson(eatery, date);
+
+  menu.then(function (result) {
+
+      var allMealItems = getMeal(getDiningHallInfo(result, diningHalls.get(eatery)), meal_time);
+
+      if (allMealItems["stations"] == undefined) {
+        // mealType doesn't exist for this dining hall
+          if (allMealItems.length == 0) {
+              assistant.tell("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed for " + meal_time);
+          } else {
+
+              message = meal_time + " at " + eatery + " does not exist. Try: ";
+              for (var i = 0; i < allMealItems.length; i++) {
+                  message = message + " " + allMealItems[i];
+                  if (i == allMealItems.length - 2) {
+                      message = message + " or";
+                  }
+              }
+              assistant.tell(message);
+          }
+      } else {
+          var item_lookup = result.body.items;
+          var stations = allMealItems["stations"];
+          var foodList = [];
+          // front-end deals with determining whether coursesToLookUp is correct (check FoodType Entity)
+          // assumption coursesToLookup is valid
+          var includeAllCourses = coursesToLookUp == []; // include all courses if coursesToLookUp is empty
+          for (var i = 0; i < stations.length; i++) {
+              if (!includeAllCourses) {
+                  // if we don't want to include all courses, check to make sure the label is in courses
+                  if (coursesToLookUp.indexOf(stations[i].id) < 0) {
+                      continue;
+                  }
+              }
+
+              // include/exclude dishes
+              for (var j = 0; j < stations[i].items.length; j++) {
+                  var id = stations[i].items[j];
+                  if (food_restriction != null) {
+                      // if there are food restrictions, then only add items to the list that are OK
+                      for (var k = 0; k < food_restriction.length; k++) {
+                          if (item_lookup[id]["cor_icon"][food_restriction[k]] != undefined) {
+                              foodList.push(item_lookup[id].label);
+                              continue;
+                          }
+                      }
+                  } else {
+                      foodList.push(item_lookup[id].label);
+                  }
+              }
+          }
+
+          for (var i = 0; i < foodList.length; i++) {
+              message = message + " " + foodList[i] + ",";
+              if (i == foodList.length - 2) {
+                  message = message  + " and";
+              }
+          }
+
+          if (foodList.length == 0 && food_types.length == 0 && food_restriction == null) {
+              assistant.tell("Sorry, I couldn't find any items for " + eatery + " at " + meal_time);
+          } else if (foodList.length == 0 && food_restriction != null){
+              assistant.tell("Sorry, I couldn't find any " + original_food_restriction + " options for " + eatery + " at " + meal_time);
+          } else if (foodList.length == 0) {
+              message = "Sorry, I couldn't find any items for " + eatery + " at " + meal_time + " in the category ";
+              for (var i = 0; i < food_types.length; i++) {
+                  message = message + " " + food_types[i];
+                  if (i == food_types.length - 2) {
+                      message = message + " or";
+                  }
+              }
+              assistant.tell(message);
+          } else {
+              assistant.tell(message);
+          }
+      }
   });
 }
 
 function handleDiningHours(assistant){
   var eatery = assistant.getArgument(EATERY_ENTITY);
   var mealTime = assistant.getArgument(MEALTIME_ENTITY);
+  var date = assistant.getArgument(DATE_ENTITY);
 
-  var hours_promise = getDiningTime(eatery, formatDate(new Date()), mealTime);
+  var hours_promise = getDiningTime(eatery, date, mealTime);
   hours_promise.then(function (ret) {
-    assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " today "); // to do: be able to check for other days (not just today)
-  });
+      if (ret.start == undefined) {
+          assistant.tell(eatery + " is not serving " + mealTime + " on " + date);
+      } else {
+          assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " on " + date);
+      }
+    });
 }
 
 
@@ -340,33 +414,6 @@ function handleBrownEvents(assistant) {
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
 
-     //    function responseHandler (assistant) {
-     //
-     //        const intent = req.body.result.metadata.intentName;
-     //        switch (intent) {
-     //            case SHUTTLE:
-     //                shuttleFunction.handleShuttle(assistant);
-     //                break;
-     //            case SHUTTLE_FOLLOWUP:
-     //                handleShuttle(assistant);
-     //                break;
-     //            case DINING_MENU:
-     //                handleDining(assistant);
-     //                break;
-     //            case DINING_HOURS:
-     //                handleDiningHours(assistant);
-     //            case BROWN_EVENTS:
-     //                handleBrownEvents(assistant);
-     //                break;
-     //            case LAUNDRY:
-     //                laundryFunction.handleLaundry(assistant);
-     //                break;
-     //
-     //        }
-     //    }
-     //assistant.handleRequest(responseHandler);
-
-
   const actionMap = new Map();
   actionMap.set(SHUTTLE, shuttleFunction.handleShuttle);
   actionMap.set(DINING_MENU, handleDining);
@@ -374,9 +421,6 @@ router.post('/', function(req, res, next) {
   actionMap.set(BROWN_EVENTS, handleBrownEvents);
   actionMap.set(LAUNDRY, laundryFunction.handleLaundry);
   assistant.handleRequest(actionMap);
-
-  //res.send();
-
 });
 
 module.exports = router;
