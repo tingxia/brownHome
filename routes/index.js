@@ -18,6 +18,7 @@ const MEALTIME_ENTITY = 'MealTime';
 const FOODTYPE_ENTITY = 'FoodType';
 const LAUNDRY_ENTITY = "LaundryRoom";
 const LAUNDRY_MACHINE_TYPE = "LaundryMachineType";
+const DATE_ENTITY = "Date";
 
 const TIME_PERIOD_PARAMETER = 'TimePeriod'; // used in BrownEvents intent
 const EVENT_CATEGORY_ENTITY = 'EventCategory';
@@ -168,8 +169,8 @@ function getMeal(menu, mealTime) {
     return validMealTimes
 }
 
-// gets menu json
-function getDiningMenu(diningHallName, date) {
+// gets dining json
+function getDiningJson(diningHallName, date) {
   //var includeAllCourses = courses.length == 0;
   var diningHallCode = diningHalls.get(diningHallName);
   return new Promise(function(resolve, reject) {
@@ -230,13 +231,17 @@ function handleDining(assistant) {
 
   var meal_time = assistant.getArgument(MEALTIME_ENTITY);
   var food_types = assistant.getArgument(FOODTYPE_ENTITY);
+  var date = assistant.getArgument(DATE_ENTITY);
+  if (date == null || date == "today") {
+      date = formatDate(new Date());
+  }
 
   //setting up items to look up
   var coursesToLookUp = [];
   var message = "";
   if (food_types.length == 0) {
     coursesToLookUp = defaultChangingDishes.get(eatery);
-    message = "The rotating items on today's menu for " + meal_time + " at the " + eatery + " are: ";
+    message = "The rotating items for " + date  + " for " + meal_time + " at " + eatery + " are: ";
   } else {
     for (var i = 0; i < food_types.length; i++) {
       coursesToLookUp.push(course.get(eatery + food_types[i]));
@@ -247,22 +252,26 @@ function handleDining(assistant) {
     }
     message = message + " options at the " + eatery + " for " + meal_time + " are: ";
   }
-  
-  var menu = getDiningMenu(eatery, formatDate(new Date()));
+
+  var menu = getDiningJson(eatery, date);
+
   menu.then(function (result) {
-
       var allMealItems = getMeal(getDiningHallInfo(result, diningHalls.get(eatery)), meal_time);
-
       if (allMealItems["stations"] == undefined) {
         // mealType doesn't exist for this dining hall
-          message = meal_time + " at " + eatery + " does not exist today. Try ";
-          for (var i = 0; i < allMealItems.length; i++) {
-              message = message + " " + allMealItems[i];
-              if (i == allMealItems.length - 2) {
-                  message = message + " or";
+          if (allMealItems.length == 0) {
+              assistant.tell("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed.");
+          } else {
+
+              message = meal_time + " at " + eatery + " does not exist. Try: ";
+              for (var i = 0; i < allMealItems.length; i++) {
+                  message = message + " " + allMealItems[i];
+                  if (i == allMealItems.length - 2) {
+                      message = message + " or";
+                  }
               }
+              assistant.tell(message);
           }
-          assistant.tell(message);
       } else {
           var item_lookup = result.body.items;
           var stations = allMealItems["stations"];
@@ -301,11 +310,16 @@ function handleDining(assistant) {
 function handleDiningHours(assistant){
   var eatery = assistant.getArgument(EATERY_ENTITY);
   var mealTime = assistant.getArgument(MEALTIME_ENTITY);
+  var time = assistant.getArgument(DATE_ENTITY);
 
-  var hours_promise = getDiningTime(eatery, formatDate(new Date()), mealTime);
+  var hours_promise = getDiningTime(eatery, time, mealTime);
   hours_promise.then(function (ret) {
-    assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " today "); // to do: be able to check for other days (not just today)
-  });
+      if (ret.start == undefined) {
+          assistant.tell(eatery + " is not serving " + mealTime + " on " + time);
+      } else {
+          assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end);
+      }
+    });
 }
 
 function handleShuttle(assistant) {
@@ -521,33 +535,6 @@ function getLaundryRoomStatus(assistant, id) {
 router.post('/', function(req, res, next) {
   const assistant = new ApiAiAssistant({request: req, response: res});
 
-     //    function responseHandler (assistant) {
-     //
-     //        const intent = req.body.result.metadata.intentName;
-     //        switch (intent) {
-     //            case SHUTTLE:
-     //                handleShuttle(assistant);
-     //                break;
-     //            case SHUTTLE_FOLLOWUP:
-     //                handleShuttle(assistant);
-     //                break;
-     //            case DINING_MENU:
-     //                handleDining(assistant);
-     //                break;
-     //            case DINING_HOURS:
-     //                handleDiningHours(assistant);
-     //            case BROWN_EVENTS:
-     //                handleBrownEvents(assistant);
-     //                break;
-     //            case LAUNDRY:
-     //                handleLaundry(assistant);
-     //                break;
-     //
-     //        }
-     //    }
-     //assistant.handleRequest(responseHandler);
-
-
   const actionMap = new Map();
   actionMap.set(SHUTTLE, handleShuttle);
   actionMap.set(SHUTTLE_FOLLOWUP, handleShuttle);
@@ -556,9 +543,6 @@ router.post('/', function(req, res, next) {
   actionMap.set(BROWN_EVENTS, handleBrownEvents);
   actionMap.set(LAUNDRY, handleLaundry);
   assistant.handleRequest(actionMap);
-
-
-  //res.send();
 
 });
 
