@@ -24,9 +24,9 @@ module.exports = {
                         message = message + " " + list_events[i].title;
                     }
                     if (list_events.length == 0) {
-                        assistant.tell("There are no " + eventsCategory + " events in the next " + days + "days");
+                        assistant.ask("There are no " + eventsCategory + " events in the next " + days + "days");
                     } else {
-                        assistant.tell(message);
+                        assistant.ask(message);
                     }
                 });
             });

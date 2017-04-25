@@ -105,16 +105,16 @@ module.exports = {
         var hours_promise = getDiningTime(eatery, date, mealTime);
         hours_promise.then(function (ret) {
             if (ret.start == undefined) {
-                assistant.tell(eatery + " is not serving " + mealTime + " on " + date);
+                assistant.ask(eatery + " is not serving " + mealTime + " on " + date);
             } else {
-                assistant.tell(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " on " + date);
+                assistant.ask(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " on " + date);
             }
         });
     },
     handleDining: function (assistant) {
         var eatery = assistant.getArgument(EATERY_ENTITY);
         if (eatery == JOS) {
-            assistant.tell("Sorry, I do not support queries for Jo's menus yet. However, I do support Ratty, Blue Room, V-Dub and Andrews Commons.");
+            assistant.ask("Sorry, I do not support queries for Jo's menus yet. However, I do support Ratty, Blue Room, V-Dub and Andrews Commons.");
             return;
         }
 
@@ -166,17 +166,17 @@ module.exports = {
             if (allMealItems["stations"] == undefined) {
                 // mealType doesn't exist for this dining hall
                 if (allMealItems.length == 0) {
-                    assistant.tell("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed for " + meal_time);
+                    assistant.ask("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed");
                 } else {
-                    message = meal_time + " at " + eatery + " does not exist. Try: ";
+                    message = meal_time + " at " + eatery + " does not exist on" + date + " . Try: ";
                     // Prompts the user to check for a different meal_time (ie: Breakfast/Brunch/Dinner... etc.)
                     for (var i = 0; i < allMealItems.length; i++) {
-                        message = message + " " + allMealItems[i];
+                        message = message + " " + allMealItems[i] + ",";
                         if (i == allMealItems.length - 2) {
                             message = message + " or";
                         }
                     }
-                    assistant.tell(message);
+                    assistant.ask(message);
                 }
             } else {
                 var item_lookup = result.body.items;
@@ -221,9 +221,9 @@ module.exports = {
 
                 // Final report of message to assistant:
                 if (foodList.length == 0 && food_types.length == 0 && food_restriction == null) {
-                    assistant.tell("Sorry, I couldn't find any items for " + eatery + " at " + meal_time);
+                    assistant.ask("Sorry, I couldn't find any items for " + eatery + " at " + meal_time);
                 } else if (foodList.length == 0 && food_restriction != null) {
-                    assistant.tell("Sorry, I couldn't find any " + original_food_restriction + " options for " + eatery + " at " + meal_time);
+                    assistant.ask("Sorry, I couldn't find any " + original_food_restriction + " options for " + eatery + " at " + meal_time);
                 } else if (foodList.length == 0) {
                     message = "Sorry, I couldn't find any items for " + eatery + " at " + meal_time + " in the category ";
                     for (var i = 0; i < food_types.length; i++) {
@@ -232,9 +232,9 @@ module.exports = {
                             message = message + " or";
                         }
                     }
-                    assistant.tell(message);
+                    assistant.ask(message);
                 } else {
-                    assistant.tell(message);
+                    assistant.ask(message);
                 }
             }
         });

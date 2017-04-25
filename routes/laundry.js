@@ -23,7 +23,7 @@ module.exports = {
                   }
               }
               if (id === "") {
-                  assistant.tell("Sorry, but I was not able to find the room" + room);
+                  assistant.ask("Sorry, but I was not able to find the room" + room);
               } else {
                   getLaundryRoomStatus(assistant, id);
               }
@@ -59,12 +59,12 @@ function getLaundryRoomStatus(assistant, id) {
             var be = count == 1? "is ":"are ";
             response = "There " +  be  + count + " " +originalType + " available, and the " + ones + response;
             if (res.length == 0) {
-                assistant.tell("Sorry, but I was not able to retrieve machine status at this time");
+                assistant.ask("Sorry, but I was not able to retrieve machine status at this time");
             } else {
                 if (count == res.length) {
-                    assistant.tell("There " + be + count + " " +originalType + " that "+ be +"available");
+                    assistant.ask("There " + be + count + " " +originalType + " that "+ be +"available");
                 } else {
-                    assistant.tell(response);
+                    assistant.ask(response);
                 }
             }
 

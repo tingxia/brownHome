@@ -37,10 +37,10 @@ module.exports = {
                 [name, route_id], function(err, result){
                     if (err) {
                         console.log(err);
-                        assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
+                        assistant.ask("Sorry, there was an error occurred when I tried to find the stop_id for" +
                             "stop " + originalName);
                     } else if (result.rowCount == 0) {
-                        assistant.tell("Sorry, but I don't know a shuttle stop called " + originalName);
+                        assistant.ask("Sorry, but I don't know a shuttle stop called " + originalName);
                     } else if (!err) {
                         var stop_id = result.rows[0].stop_id;
                         if (stop_id !== undefined && stop_id !== "") {
@@ -59,7 +59,7 @@ module.exports = {
                 [name], function(err, result){
                     var rowCount = result.rowCount;
                     if (rowCount == 0) {
-                        assistant.tell("Sorry, but I don't know a shuttle stop called " + originalName);
+                        assistant.ask("Sorry, but I don't know a shuttle stop called " + originalName);
                     } else if (!err) {
                         if (rowCount > 1) {
                             //console.log("more than 1 rowCount");
@@ -73,7 +73,7 @@ module.exports = {
                         }
                     } else {
                         console.log(err);
-                        assistant.tell("Sorry, there was an error occurred when I tried to find the stop_id for" +
+                        assistant.ask("Sorry, there was an error occurred when I tried to find the stop_id for" +
                             "stop " + originalName);
                     }
                 });
@@ -90,7 +90,7 @@ function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
         .header("Accept", "application/json")
         .end(function (result) {
             if (result.body.data.length == 0) {
-                assistant.tell("I'm sorry, but there are no arrival estimates for the stop right now.");
+                assistant.ask("I'm sorry, but there are no arrival estimates for the stop right now.");
             } else {
                 var next_arrival_time_json_format =  result.body.data[0].arrivals[0].arrival_at;
                 var now = Date.now();
@@ -104,10 +104,10 @@ function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
                 arrival_time.setSeconds(0);
 
                 if (date_diff.getMinutes() < 1) {
-                    assistant.tell("The shuttle is arriving now at " + name);
+                    assistant.ask("The shuttle is arriving now at " + name);
                 } else {
                     //TODO: add time from now (ie: "will arrive in 5 minutes at 6:24pm")
-                    assistant.tell("The next shuttle will arrive at " + name + " in " + date_diff.getMinutes() + " minutes " + " at " + arrival_time.toLocaleTimeString());
+                    assistant.ask("The next shuttle will arrive at " + name + " in " + date_diff.getMinutes() + " minutes " + " at " + arrival_time.toLocaleTimeString());
                 }
             }
         });
