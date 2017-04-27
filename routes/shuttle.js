@@ -3,6 +3,8 @@
  */
 var express = require('express');
 var anyDB = require('any-db');
+var util = require('./util.js');
+var convertTimeToSpeakableString = util.convertTimeToSpeakableString;
 var conn = anyDB.createConnection('sqlite3://data/test.db');
 var unirest = require('unirest');
 const SHUTTLE_STOP_ENTITY = 'ShuttleStop';
@@ -19,9 +21,11 @@ module.exports = {
         var name = null;
         for (var i=0; i < contexts.length; i++) {
             if (contexts[i].name === SHUTTLE_CONTEXT) {
-                console.log(contexts[i]);
                 name = contexts[i].parameters.shuttleName; //assistant.getContextArgument("shuttle-ctx",'shuttleName');
-                hasPriorContext = true;
+                var route_id = assistant.getArgument(IS_DAYTIME_SHUTTLE);
+                if (route_id !== undefined) {
+                    hasPriorContext = true;
+                }
                 break;
             }
         }
@@ -83,7 +87,9 @@ module.exports = {
 };
 
 
+
 function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
+    //assistant.tell("4:05PM  4:05 pm 4:05 p.m.")
     // These code snippets use an open-source library. http://unirest.io/nodejs
     unirest.get("https://transloc-api-1-2.p.mashape.com/arrival-estimates.json?agencies=635&callback=call&stops="+stop_id)
         .header("X-Mashape-Key", "0PiJbg4Ao5mshixwHHSHZTiy5ZGGp1ptfx1jsn82ux5n1i0qqe")
@@ -107,7 +113,7 @@ function requestArrivalEstimatesByStopId(name, stop_id, assistant) {
                     assistant.ask("The shuttle is arriving now at " + name);
                 } else {
                     //TODO: add time from now (ie: "will arrive in 5 minutes at 6:24pm")
-                    assistant.ask("The next shuttle will arrive at " + name + " in " + date_diff.getMinutes() + " minutes " + " at " + arrival_time.toLocaleTimeString());
+                    assistant.ask("The next shuttle will arrive at " + name + " in " + date_diff.getMinutes() + " minutes " + " at " + convertTimeToSpeakableString(arrival_time.getHours(), arrival_time.getMinutes()));
                 }
             }
         });

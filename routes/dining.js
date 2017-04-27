@@ -3,6 +3,8 @@
  */
 
 var unirest = require('unirest');
+var util = require('./util.js');
+var convertTimeToSpeakableString = util.convertTimeToSpeakableString;
 
 // ENTITIES
 const EATERY_ENTITY = 'Eatery';
@@ -10,6 +12,7 @@ const MEALTIME_ENTITY = 'MealTime';
 const FOODTYPE_ENTITY = 'FoodType';
 const DATE_ENTITY = "Date";
 const FOODRESTRICTION_ENTITY = "FoodRestriction";
+const ORIGINAL = "Original";
 
 var diningHalls = new Map();
 const RATTY = "Ratty";
@@ -101,13 +104,17 @@ module.exports = {
         var eatery = assistant.getArgument(EATERY_ENTITY);
         var mealTime = assistant.getArgument(MEALTIME_ENTITY);
         var date = assistant.getArgument(DATE_ENTITY);
+        var original_date = assistant.getArgument(DATE_ENTITY + ORIGINAL);
+        // TODO: check if original_date is correct matchup with date (ie: tomorrow is actually tomorrow's date, today is actually today's date)
 
         var hours_promise = getDiningTime(eatery, date, mealTime);
         hours_promise.then(function (ret) {
             if (ret.start == undefined) {
-                assistant.ask(eatery + " is not serving " + mealTime + " on " + date);
+                assistant.ask(eatery + " is not serving " + mealTime + " " +  original_date);
             } else {
-                assistant.ask(eatery + " " + mealTime + " hours are " + ret.start + " to " + ret.end + " on " + date);
+                var start_split = ret.start.split(":");
+                var end_split = ret.end.split(":");
+                assistant.ask(eatery + " " + mealTime + " hours are " + convertTimeToSpeakableString(parseInt(start_split[0]), parseInt(start_split[1])) + " to " + convertTimeToSpeakableString(parseInt(end_split[0]), parseInt(end_split[1])) + " " +  original_date);
             }
         });
     },
