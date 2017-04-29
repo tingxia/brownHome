@@ -1,7 +1,7 @@
 # brownHome
-### Backend Service Set up:
-	run "npm install" to get dependencies. No need to track them in git.
-	run "node loader.js" to install and populate database. The database will be under /data.
+### Backend Service Setup:
+1. run "npm install" to get dependencies. No need to track them in git.
+2. run "node loader.js" to install and populate database. The database will be under /data.
 
 ### To run Backend Server:
 1. ngrok:  Install ngrok to mask localhost to a https or http url for testing purpose with api_ai.
