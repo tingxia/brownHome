@@ -4,7 +4,7 @@
 2. run "node loader.js" to install and populate database. The database will be under /data.
 
 ### To run Backend Server:
-1. ngrok:  Install ngrok to mask localhost to a https or http url for testing purpose with api_ai.
+1. ngrok:  Install ngrok to mask localhost to an https or http url for testing purpose with api_ai.
   * In the directory where you have downloaded ngrok, run ./ngrok http 3000. You will see the http or https url your localhost:3000 maps to. Copy either over (https when previewing), then opening your api_ai fulfillment tab on the left of your api_ai interface, paste the http/https url to the URL field and save.
 2. Run the server by typing "node bin/www" in the brownHome directory. It is served at localhost:3000.  Now your api_ai should be able to talk to your localhost server.
 
