@@ -175,7 +175,7 @@ module.exports = {
                 if (allMealItems.length == 0) {
                     assistant.ask("Unable to retrieve information for " + eatery + " on " + date + ".  This probably means the dining hall is closed");
                 } else {
-                    message = meal_time + " at " + eatery + " does not exist on" + date + " . Try: ";
+                    message = meal_time + " at " + eatery + " does not exist on " + date + " . Try: ";
                     // Prompts the user to check for a different meal_time (ie: Breakfast/Brunch/Dinner... etc.)
                     for (var i = 0; i < allMealItems.length; i++) {
                         message = message + " " + allMealItems[i] + ",";
