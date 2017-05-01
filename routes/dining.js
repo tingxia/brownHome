@@ -164,9 +164,10 @@ module.exports = {
             }
             message = message + " options at the " + eatery + " for " + meal_time + " are: ";
         }
-
+        console.log("about to get dining json");
+        console.log(date);
         var menu = getDiningJson(eatery, date); // returns a Promise (async call to API)
-
+        
         menu.then(function (result) { // waits for Promise's return and then parses through json to retrieve items requested
             var allMealItems = getMeal(getDiningHallInfo(result, diningHalls.get(eatery)), meal_time);
 
@@ -259,6 +260,11 @@ function formatDate(date) {
     month = new String(month + 1);
     if (month.length == 1) {
         month = 0 + month;
+    }
+
+    var date = new String(date);
+    if (date.length == 1) {
+        date = 0 + date;
     }
 
     return year + "-" + month + "-" + date;
