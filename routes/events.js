@@ -10,6 +10,7 @@ const EVENT_CATEGORY_ENTITY = 'EventCategory';
 module.exports = {
     handleBrownEvents: function (assistant) {
         var days = calcDays(assistant.getArgument(TIME_PERIOD_PARAMETER));
+        
         var eventCategory = assistant.getArgument(EVENT_CATEGORY_ENTITY);
         if (eventCategory == null) {
             eventCategory = "";
@@ -35,6 +36,10 @@ module.exports = {
 
 //  input duration: {"amount": 10, "unit": min} or string: today, week, month
 function calcDays(duration) {
+    if (duration == null) {
+        return 2; // by default
+    }
+
     if (duration == "day" || duration == "today") {
         return 1;
     } else if (duration == "week"){
