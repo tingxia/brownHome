@@ -164,8 +164,7 @@ module.exports = {
             }
             message = message + " options at the " + eatery + " for " + meal_time + " are: ";
         }
-        console.log("about to get dining json");
-        console.log(date);
+
         var menu = getDiningJson(eatery, date); // returns a Promise (async call to API)
         
         menu.then(function (result) { // waits for Promise's return and then parses through json to retrieve items requested
