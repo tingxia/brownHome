@@ -21,11 +21,15 @@ module.exports = {
             .end(function (result) {
                 parseString(result.body, function (err, result) {
                     var list_events = result.rss.channel[0].item;
+                    if (list_events === undefined) {
+                        assistant.ask("There are no " + eventCategory + " events in the next " + days + "days");
+                        return;
+                    }
                     for (var i = 0; i < list_events.length; i++) {
                         message = message + " " + list_events[i].title;
                     }
                     if (list_events.length == 0) {
-                        assistant.ask("There are no " + eventsCategory + " events in the next " + days + "days");
+                        assistant.ask("There are no " + eventCategory + " events in the next " + days + "days");
                     } else {
                         assistant.ask(message);
                     }
